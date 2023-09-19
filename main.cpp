@@ -9,17 +9,27 @@ int main(int argc, char* argv[])
 {
     // single thread processor
     // it's either processing something or it's not
-//    bool processorAvailable = true;
+    // bool processorAvailable = true;
 
     // vector of processes, processes will appear here when they are created by
     // the ProcessMgmt object (in other words, automatically at the appropriate time)
     list<Process> processList;
     
+    // vector of iterators for the 
+    vector<list<Process>::iterator> readyList;
+
+    // iterator that points to the currently running process
+    list<Process>::iterator curRun;
+
+    // bool that keeps track if process is currently running
+    bool bcurRun = 0;
+
     // this will orchestrate process creation in our system, it will add processes to 
     // processList when they are created and ready to be run/managed
     ProcessManagement processMgmt(processList);
 
     // this is where interrupts will appear when the ioModule detects that an IO operation is complete
+    // look at what process is here and move them to the ready state and then remove them
     list<IOInterrupt> interrupts;   
 
     // this manages io operations and will raise interrupts to signal io completion
@@ -57,7 +67,7 @@ int main(int argc, char* argv[])
 
 
     time = 0;
-//    processorAvailable = true;
+    //processorAvailable = true;
 
     //keep running the loop until all processes have been added and have run to completion
     while(processMgmt.moreProcessesComing()  /* TODO add something to keep going as long as there are processes that arent done! */ )
@@ -79,6 +89,31 @@ int main(int argc, char* argv[])
         // - start processing a ready process if there are any ready
 
 
+        //Populates the readyList with all iterators to the ready processes from the processList
+        list<Process>::iterator itr = processList.begin();
+        for(unsigned long x=0; x<processList.size(); x++){
+          if(itr -> state == 0){
+            readyList.push_back(itr);
+          }
+          else if(itr -> state == 1){
+            curRun = itr;
+            bcurRun = 1;
+          }
+          itr++;
+        }
+
+        // !!-- This is how to access the state of items in the processList --!!        
+        //list<Process>::iterator itr1 = processList.begin();
+        //itr1 -> state = ready;
+        //cout << itr1 -> state << endl;
+
+        // !!-- This is how to access the state of items in the readyList --!!
+        //for(const auto& x : readyList){
+        //  cout << x -> state << endl;
+        //}
+
+
+
         //init the stepAction, update below
         stepAction = noAct;
 
@@ -96,10 +131,15 @@ int main(int argc, char* argv[])
 
         //   <your code here> 
 
+        if(bcurRun == 1){
+          curRun -> processorTime++;
+        }
+
+        //IO request
+        ioModule.submitIORequest(time, curRun->ioEvents.front(), *curRun);
 
 
-
-
+        readyList.clear();
 
         // Leave the below alone (at least for final submission, we are counting on the output being in expected format)
         cout << setw(5) << time << "\t"; 
@@ -134,6 +174,7 @@ int main(int argc, char* argv[])
 
         this_thread::sleep_for(chrono::milliseconds(sleepDuration));
     }
+
 
     return 0;
 }
