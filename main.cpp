@@ -70,7 +70,8 @@ int main(int argc, char* argv[])
     //processorAvailable = true;
 
     //keep running the loop until all processes have been added and have run to completion
-    while(processMgmt.moreProcessesComing()  /* TODO add something to keep going as long as there are processes that arent done! */ )
+    //TODO: More logic needed to keep the while loop going
+    while(processMgmt.moreProcessesComing() || time < 400)
     {
         //Update our current time step
         ++time;
@@ -88,57 +89,74 @@ int main(int argc, char* argv[])
         // - address an interrupt if there are any pending (i.e., update the state of a blocked process whose IO operation is complete)
         // - start processing a ready process if there are any ready
 
-
-        //Populates the readyList with all iterators to the ready processes from the processList
+        stepAction = noAct;
         list<Process>::iterator itr = processList.begin();
+        list<Process>::iterator end = processList.begin();
+        int tmp = 0;
         for(unsigned long x=0; x<processList.size(); x++){
           if(itr -> state == 0){
             readyList.push_back(itr);
+            itr -> state = ready;
+            itr++;
           }
-          else if(itr -> state == 1){
-            curRun = itr;
-            bcurRun = 1;
+          else if(itr -> state == 3 && tmp == 0){
+            readyList.push_back(itr);
+            itr -> state = ready;
+            itr++;
+            tmp++;
+            stepAction = admitNewProc;
           }
-          itr++;
+          end = itr;
         }
+        
 
         // !!-- This is how to access the state of items in the processList --!!        
         //list<Process>::iterator itr1 = processList.begin();
         //itr1 -> state = ready;
         //cout << itr1 -> state << endl;
 
-        // !!-- This is how to access the state of items in the readyList --!!
+        //!!-- This is how to access the state of items in the readyList --!!
         //for(const auto& x : readyList){
         //  cout << x -> state << endl;
         //}
 
-
-
-        //init the stepAction, update below
-        stepAction = noAct;
-
-        
-        //TODO add in the code to take an appropriate action for this time step!
-        //you should set the action variable based on what you do this time step. you can just copy and paste the lines below and uncomment them, if you want.
-        //stepAction = continueRun;  //runnning process is still running
-        //stepAction = ioRequest;  //running process issued an io request
-        //stepAction = complete;   //running process is finished
-        //stepAction = admitNewProc;   //admit a new process into 'ready'
-        //stepAction = handleInterrupt;   //handle an interrupt
-        //stepAction = beginRun;   //start running a process
- 
-        
-
-        //   <your code here> 
-
-        if(bcurRun == 1){
-          curRun -> processorTime++;
+        if(processMgmt.moreProcessesComing()){
+          stepAction = admitNewProc;
         }
 
+        //stepAction = continueRun;       //runnning process is still running
+        //stepAction = ioRequest;         //running process issued an io request
+        //stepAction = complete;          //running process is finished
+        //stepAction = admitNewProc;      //admit a new process into 'ready'
+        //stepAction = handleInterrupt;   //handle an interrupt
+        //stepAction = beginRun;          //start running a process
+
+
         //IO request
-        ioModule.submitIORequest(time, curRun->ioEvents.front(), *curRun);
+        //ioModule.submitIORequest(time, curRun->ioEvents.front(), *curRun);
 
-
+        if(!processMgmt.moreProcessesComing() && (end -> state != newArrival) && tmp == 0){ 
+          if(bcurRun == 1){
+            curRun -> processorTime++;
+            stepAction = continueRun;
+            //Check if it needs to make an IOrequest
+            //If not then this timestep is complete
+            if(curRun -> processorTime == curRun -> reqProcessorTime){
+              curRun -> state = done; 
+              bcurRun = 0;
+              stepAction = complete;
+            }
+          }
+          else{
+            if(readyList.size() != 0){
+              curRun = readyList[0];
+              curRun -> state = processing;
+              bcurRun = 1;
+              stepAction = beginRun;
+            }
+          }
+        }
+          
         readyList.clear();
 
         // Leave the below alone (at least for final submission, we are counting on the output being in expected format)
