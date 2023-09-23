@@ -7,16 +7,15 @@
 
 int main(int argc, char* argv[])
 {
-    // single thread processor
-    // it's either processing something or it's not
-    // bool processorAvailable = true;
-
     // vector of processes, processes will appear here when they are created by
     // the ProcessMgmt object (in other words, automatically at the appropriate time)
     list<Process> processList;
     
-    // vector of iterators for that point to ready processes in the processList
-    vector<list<Process>::iterator> readyList;
+    // list of iterators that point to ready processes in the processList
+    list<list<Process>::iterator> readyList;
+
+    // vector of iterators that point to blocked processes in the processList
+    vector <list<Process>::iterator> blockedList;
 
     // iterator that points to the currently running process
     list<Process>::iterator curRun;
@@ -38,14 +37,12 @@ int main(int argc, char* argv[])
     // this tells if all the processes in the processList are in the done state
     bool allDone = 0;
 
-    // Do not touch
     long time = 1;
     long sleepDuration = 50;
     string file;
     stringstream ss;
     enum stepActionEnum {noAct, admitNewProc, handleInterrupt, beginRun, continueRun, ioRequest, complete} stepAction;
 
-    // Do not touch
     switch(argc)
     {
         case 1:
@@ -83,22 +80,25 @@ int main(int argc, char* argv[])
         //update the status for any active IO requests
         ioModule.ioProcessing(time);
 
-
         stepAction = noAct;
 
-        //This loop is responsible for adding processes to my ready list and selecting the process to run (before IO request)
+        //This loop is responsible for adding processes to my ready list 
+        //and selecting the process to run (before IO request)
         list<Process>::iterator itr = processList.begin();
         list<Process>::iterator end = processList.begin();
         int tmp = 0;
         for(unsigned long x=0; x<processList.size(); x++){
+          //adds to readyList if it is in the ready state
           if(itr->state == 0){
             readyList.push_back(itr);
             itr->state = ready;
           }
+          //keeps the running process running
           else if(itr->state == 1){
             bcurRun = 1;
             curRun = itr;
           }
+          //adds the first newArrival to the readyList
           else if(itr->state == 3 && tmp == 0){
             readyList.push_back(itr);
             itr->state = ready;
@@ -109,16 +109,6 @@ int main(int argc, char* argv[])
           end = itr;
         }
         
-
-        // !!-- This is how to access the state of items in the processList --!!        
-        //list<Process>::iterator itr1 = processList.begin();
-        //itr1 -> state = ready;
-        //cout << itr1 -> state << endl;
-        
-        //for(const auto& x : readyList){
-        //  x->state =?
-        //}
-
         if(processMgmt.moreProcessesComing()){
           stepAction = admitNewProc;
         }
@@ -131,31 +121,63 @@ int main(int argc, char* argv[])
         //stepAction = beginRun;          //start running a process
 
 
-        //IO request
-        //ioModule.submitIORequest(time, curRun->ioEvents.front(), *curRun);
-
         if(!processMgmt.moreProcessesComing() && (end->state != newArrival) && tmp == 0){ 
+          //Checks if there is a proces running
           if(bcurRun == 1){
             curRun->processorTime++;
             stepAction = continueRun;
-            if(curRun->processorTime == curRun->reqProcessorTime){
+            
+            //Issues the ioRequest if the process has one
+            if(curRun->ioEvents.begin()->time == curRun->processorTime){
+              stepAction = ioRequest;
+              ioModule.submitIORequest(time, curRun->ioEvents.front(), *curRun);
+              curRun->state = blocked;
+              blockedList.push_back(curRun);
+              bcurRun = 0;
+            }
+
+            //Checks if the process is done
+            else if(curRun->processorTime == curRun->reqProcessorTime){
+              stepAction = complete;
               curRun->state = done; 
               bcurRun = 0;
-              stepAction = complete;
             }
           }
+
+          //If there is not a process currently running
           else{
-            if(readyList.size() != 0){
-              curRun = readyList[0];
+
+            //Finds the process in the blocked list that corresponds to the interrupt
+            
+            if(interrupts.empty() == 0){
+              for(unsigned long q=0; q<blockedList.size(); q++){
+                if(interrupts.begin()->procID == blockedList[q]->id){ 
+                  stepAction = handleInterrupt;
+                  
+                  curRun = blockedList[q];
+                  curRun->state = processing;
+                  bcurRun = 1;;
+                  
+                  interrupts.pop_front();
+                }
+              }
+            }
+
+            //Selects the first process from the readyList to run
+            //if there is not one already running
+            else if(readyList.size() != 0){
+              stepAction = beginRun;
+              curRun = readyList.front();
               curRun->state = processing;
               bcurRun = 1;
-              stepAction = beginRun;
+              readyList.pop_front();
             }
           }
         }
           
         readyList.clear();
 
+        //Checks if all the processes in the processList are done
         allDone = 1;
         list<Process>::iterator run = processList.begin();
         for(unsigned long i=0; i<processList.size(); i++){
@@ -165,7 +187,6 @@ int main(int argc, char* argv[])
           run++;
         }
 
-        // Leave the below alone (at least for final submission, we are counting on the output being in expected format)
         cout << setw(5) << time << "\t"; 
         
         switch(stepAction)
@@ -193,8 +214,7 @@ int main(int argc, char* argv[])
               break;
         }
 
-        // You may wish to use a second vector of processes (you don't need to, but you can)
-        printProcessStates(processList); // change processList to another vector of processes if desired
+        printProcessStates(processList);
 
         this_thread::sleep_for(chrono::milliseconds(sleepDuration));
     }
