@@ -15,13 +15,13 @@ int main(int argc, char* argv[])
     // the ProcessMgmt object (in other words, automatically at the appropriate time)
     list<Process> processList;
     
-    // vector of iterators for the 
+    // vector of iterators for that point to ready processes in the processList
     vector<list<Process>::iterator> readyList;
 
     // iterator that points to the currently running process
     list<Process>::iterator curRun;
 
-    // bool that keeps track if process is currently running
+    // bool that keeps track if a process is currently running
     bool bcurRun = 0;
 
     // this will orchestrate process creation in our system, it will add processes to 
@@ -34,6 +34,9 @@ int main(int argc, char* argv[])
 
     // this manages io operations and will raise interrupts to signal io completion
     IOModule ioModule(interrupts);  
+
+    // this tells if all the processes in the processList are in the done state
+    bool allDone = 0;
 
     // Do not touch
     long time = 1;
@@ -65,13 +68,11 @@ int main(int argc, char* argv[])
 
     processMgmt.readProcessFile(file);
 
-
     time = 0;
     //processorAvailable = true;
 
-    //keep running the loop until all processes have been added and have run to completion
     //TODO: More logic needed to keep the while loop going
-    while(processMgmt.moreProcessesComing() || time < 400)
+    while(processMgmt.moreProcessesComing() || allDone != 1)
     {
         //Update our current time step
         ++time;
@@ -82,30 +83,29 @@ int main(int argc, char* argv[])
         //update the status for any active IO requests
         ioModule.ioProcessing(time);
 
-        //If the processor is tied up running a process, then continue running it until it is done or blocks
-        //   note: be sure to check for things that should happen as the process continues to run (io, completion...)
-        //If the processor is free then you can choose the appropriate action to take, the choices (in order of precedence) are:
-        // - admit a new process if one is ready (i.e., take a 'newArrival' process and put them in the 'ready' state)
-        // - address an interrupt if there are any pending (i.e., update the state of a blocked process whose IO operation is complete)
-        // - start processing a ready process if there are any ready
 
         stepAction = noAct;
+
+        //This loop is responsible for adding processes to my ready list and selecting the process to run (before IO request)
         list<Process>::iterator itr = processList.begin();
         list<Process>::iterator end = processList.begin();
         int tmp = 0;
         for(unsigned long x=0; x<processList.size(); x++){
-          if(itr -> state == 0){
+          if(itr->state == 0){
             readyList.push_back(itr);
-            itr -> state = ready;
-            itr++;
+            itr->state = ready;
           }
-          else if(itr -> state == 3 && tmp == 0){
+          else if(itr->state == 1){
+            bcurRun = 1;
+            curRun = itr;
+          }
+          else if(itr->state == 3 && tmp == 0){
             readyList.push_back(itr);
-            itr -> state = ready;
-            itr++;
+            itr->state = ready;
             tmp++;
             stepAction = admitNewProc;
           }
+          itr++;
           end = itr;
         }
         
@@ -114,10 +114,9 @@ int main(int argc, char* argv[])
         //list<Process>::iterator itr1 = processList.begin();
         //itr1 -> state = ready;
         //cout << itr1 -> state << endl;
-
-        //!!-- This is how to access the state of items in the readyList --!!
+        
         //for(const auto& x : readyList){
-        //  cout << x -> state << endl;
+        //  x->state =?
         //}
 
         if(processMgmt.moreProcessesComing()){
@@ -135,14 +134,12 @@ int main(int argc, char* argv[])
         //IO request
         //ioModule.submitIORequest(time, curRun->ioEvents.front(), *curRun);
 
-        if(!processMgmt.moreProcessesComing() && (end -> state != newArrival) && tmp == 0){ 
+        if(!processMgmt.moreProcessesComing() && (end->state != newArrival) && tmp == 0){ 
           if(bcurRun == 1){
-            curRun -> processorTime++;
+            curRun->processorTime++;
             stepAction = continueRun;
-            //Check if it needs to make an IOrequest
-            //If not then this timestep is complete
-            if(curRun -> processorTime == curRun -> reqProcessorTime){
-              curRun -> state = done; 
+            if(curRun->processorTime == curRun->reqProcessorTime){
+              curRun->state = done; 
               bcurRun = 0;
               stepAction = complete;
             }
@@ -150,7 +147,7 @@ int main(int argc, char* argv[])
           else{
             if(readyList.size() != 0){
               curRun = readyList[0];
-              curRun -> state = processing;
+              curRun->state = processing;
               bcurRun = 1;
               stepAction = beginRun;
             }
@@ -158,6 +155,15 @@ int main(int argc, char* argv[])
         }
           
         readyList.clear();
+
+        allDone = 1;
+        list<Process>::iterator run = processList.begin();
+        for(unsigned long i=0; i<processList.size(); i++){
+          if(run->state != done){
+            allDone = 0;
+          }
+          run++;
+        }
 
         // Leave the below alone (at least for final submission, we are counting on the output being in expected format)
         cout << setw(5) << time << "\t"; 
@@ -192,7 +198,6 @@ int main(int argc, char* argv[])
 
         this_thread::sleep_for(chrono::milliseconds(sleepDuration));
     }
-
 
     return 0;
 }
