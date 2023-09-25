@@ -140,12 +140,15 @@ int main(int argc, char* argv[])
             stepAction = continueRun;
             
             //Issues the ioRequest if the process has one
-            if(curRun->ioEvents.begin()->time == curRun->processorTime){
-              stepAction = ioRequest;
-              ioModule.submitIORequest(time, curRun->ioEvents.front(), *curRun);
-              curRun->state = blocked;
-              blockedList.push_back(curRun);
-              bcurRun = 0;
+            if(curRun->ioEvents.size() != 0){  
+              if(curRun->ioEvents.begin()->time == curRun->processorTime){
+                stepAction = ioRequest;
+                ioModule.submitIORequest(time, curRun->ioEvents.front(), *curRun);
+                curRun->state = blocked;
+                blockedList.push_back(curRun);
+                bcurRun = 0;
+                curRun->ioEvents.pop_front(); //change -- added this if statement
+              }
             }
 
             //Checks if the process is done
