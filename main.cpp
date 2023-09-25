@@ -37,6 +37,9 @@ int main(int argc, char* argv[])
     // this tells if all the processes in the processList are in the done state
     bool allDone = 0;
 
+    // this tells if all the processes in the processList are in the ready state
+    bool allReady = 0;
+
     long time = 1;
     long sleepDuration = 50;
     string file;
@@ -64,12 +67,15 @@ int main(int argc, char* argv[])
     }
 
     processMgmt.readProcessFile(file);
+    
+    // Iterators for the process list
+    list<Process>::iterator itr = processList.begin();
+    list<Process>::iterator end = processList.begin();
 
     time = 0;
     //processorAvailable = true;
 
-    //TODO: More logic needed to keep the while loop going
-    while(processMgmt.moreProcessesComing() || allDone != 1)
+    while((processMgmt.moreProcessesComing() || allDone != 1)&&time<500)
     {
         //Update our current time step
         ++time;
@@ -84,31 +90,36 @@ int main(int argc, char* argv[])
 
         //This loop is responsible for adding processes to my ready list 
         //and selecting the process to run (before IO request)
-        list<Process>::iterator itr = processList.begin();
-        list<Process>::iterator end = processList.begin();
         int tmp = 0;
-        for(unsigned long x=0; x<processList.size(); x++){
+        if((processMgmt.moreProcessesComing() == 1) || (allReady == 0)){
+          itr++;
+
           //adds to readyList if it is in the ready state
           if(itr->state == 0){
             readyList.push_back(itr);
             itr->state = ready;
           }
-          //keeps the running process running
-          else if(itr->state == 1){
-            bcurRun = 1;
-            curRun = itr;
-          }
+
           //adds the first newArrival to the readyList
-          else if(itr->state == 3 && tmp == 0){
+          else if(itr->state == 3){
             readyList.push_back(itr);
             itr->state = ready;
             tmp++;
             stepAction = admitNewProc;
           }
-          itr++;
           end = itr;
+
+          //Checks if all the processes are in the ready state
+          list<Process>::iterator red = processList.begin();
+          for(unsigned long i=0; i<processList.size(); i++){
+            allReady = 1;
+            if(red->state != ready){
+              allReady = 0;
+            }
+            red++;
+          }
         }
-        
+
         if(processMgmt.moreProcessesComing()){
           stepAction = admitNewProc;
         }
@@ -120,8 +131,9 @@ int main(int argc, char* argv[])
         //stepAction = handleInterrupt;   //handle an interrupt
         //stepAction = beginRun;          //start running a process
 
+        //Once all the processes are admitted and put into the readyList
+        if((allReady == 1) && (end->state != newArrival) && (tmp == 0)){ 
 
-        if(!processMgmt.moreProcessesComing() && (end->state != newArrival) && tmp == 0){ 
           //Checks if there is a proces running
           if(bcurRun == 1){
             curRun->processorTime++;
@@ -148,23 +160,20 @@ int main(int argc, char* argv[])
           else{
 
             //Finds the process in the blocked list that corresponds to the interrupt
-            
             if(interrupts.empty() == 0){
+              stepAction = handleInterrupt;
+              
               for(unsigned long q=0; q<blockedList.size(); q++){
                 if(interrupts.begin()->procID == blockedList[q]->id){ 
-                  stepAction = handleInterrupt;
-                  
-                  curRun = blockedList[q];
-                  curRun->state = processing;
-                  bcurRun = 1;;
-                  
+                  blockedList[q]->state = ready;
+                  readyList.push_back(blockedList[q]);
                   interrupts.pop_front();
+                  break;
                 }
               }
             }
 
-            //Selects the first process from the readyList to run
-            //if there is not one already running
+            //Selects the first process from the readyList to run if there is not one already running
             else if(readyList.size() != 0){
               stepAction = beginRun;
               curRun = readyList.front();
@@ -175,8 +184,6 @@ int main(int argc, char* argv[])
           }
         }
           
-        readyList.clear();
-
         //Checks if all the processes in the processList are done
         allDone = 1;
         list<Process>::iterator run = processList.begin();
