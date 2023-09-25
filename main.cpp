@@ -1,3 +1,11 @@
+/*
+
+  NAME:         AVERY MITCHELL
+  CLASS:        CS 3800
+  INSTRUCTOR:   JOSHUA WILKERSON
+
+*/
+
 #include "process.h"
 #include "ioModule.h"
 #include "processMgmt.h"
@@ -124,13 +132,6 @@ int main(int argc, char* argv[])
           stepAction = admitNewProc;
         }
 
-        //stepAction = continueRun;       //runnning process is still running
-        //stepAction = ioRequest;         //running process issued an io request
-        //stepAction = complete;          //running process is finished
-        //stepAction = admitNewProc;      //admit a new process into 'ready'
-        //stepAction = handleInterrupt;   //handle an interrupt
-        //stepAction = beginRun;          //start running a process
-
         //Once all the processes are admitted and put into the readyList
         if((allReady == 1) && (end->state != newArrival) && (tmp == 0)){ 
 
@@ -147,7 +148,7 @@ int main(int argc, char* argv[])
                 curRun->state = blocked;
                 blockedList.push_back(curRun);
                 bcurRun = 0;
-                curRun->ioEvents.pop_front(); //change -- added this if statement
+                curRun->ioEvents.pop_front(); 
               }
             }
 
